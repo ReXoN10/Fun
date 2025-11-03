@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Do you want to be my GF?</title>
+  <style>
+    :root{--bg:#0f172a;--card:#0b1220;--accent:#8b5cf6;--muted:#94a3b8}
+    html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
+    body{display:grid;place-items:center;background:radial-gradient(1200px 600px at 10% 20%, #0b1b33 0%, transparent 15%),
+      radial-gradient(900px 400px at 90% 80%, #081226 0%, transparent 15%), var(--bg);color:#e6eef8}
+
+    .card{width:min(720px,94vw);background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:16px;padding:36px;text-align:center;box-shadow:0 10px 30px rgba(2,6,23,0.6);position:relative}
+    h1{margin:0 0 18px;font-size:clamp(20px,3.6vw,34px);letter-spacing:-0.02em}
+    p.lead{color:var(--muted);margin:0 0 28px}
+
+    .buttons{display:flex;gap:18px;justify-content:center;align-items:center}
+    button{appearance:none;border:0;padding:12px 28px;border-radius:999px;font-weight:600;cursor:pointer;font-size:16px;transition:transform .18s ease,box-shadow .18s ease}
+    button:active{transform:scale(.96)}
+    .yes{background:linear-gradient(90deg,#34d399,#60a5fa);color:#052027;box-shadow:0 6px 18px rgba(96,165,250,0.12)}
+    .no{background:transparent;border:2px solid rgba(255,255,255,0.06);color:#e6eef8;position:relative;min-width:100px}
+
+    .result{font-size:clamp(28px,6vw,60px);font-weight:800;color:#fff;padding:24px}
+    canvas.confetti{position:fixed;inset:0;pointer-events:none}
+
+    .gif-wrap img{
+      width:220px;
+      height:auto;
+      border-radius:12px;
+      margin-bottom:16px;
+      box-shadow:0 8px 20px rgba(0,0,0,0.3);
+    }
+
+    @media (max-width:420px){
+      .card{padding:22px}
+      .buttons{gap:12px}
+      button{padding:10px 16px}
+      .gif-wrap img{width:160px;}
+    }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <h1>Do you want to be my Girlfriend?</h1>
+    <p class="lead">Pick one — Your choice😏</p>
+
+    <div class="buttons" id="buttonRow">
+      <button class="yes" id="yesBtn">YES</button>
+      <button class="no" id="noBtn">NO</button>
+    </div>
+
+    <div id="resultWrap" style="margin-top:22px;min-height:64px"></div>
+  </div>
+
+  <canvas class="confetti" id="confettiCanvas"></canvas>
+
+  <script>
+    const noBtn = document.getElementById('noBtn');
+    const yesBtn = document.getElementById('yesBtn');
+    const card = document.getElementById('card');
+    const resultWrap = document.getElementById('resultWrap');
+
+    let dodgeEnabled = true;
+    let lastMove = 0;
+
+    function getCenter(el){
+      const r = el.getBoundingClientRect();
+      return {x: r.left + r.width/2, y: r.top + r.height/2, w: r.width, h: r.height};
+    }
+
+    function dodgeFrom(point){
+      const btnRect = noBtn.getBoundingClientRect();
+      const parentRect = card.getBoundingClientRect();
+
+      const center = {x: btnRect.left + btnRect.width/2, y: btnRect.top + btnRect.height/2};
+      let vx = center.x - point.x;
+      let vy = center.y - point.y;
+      const dist = Math.hypot(vx,vy)||1;
+      vx /= dist; vy /= dist;
+
+      const shift = Math.min((parentRect.width*0.48), 220);
+      let newCx = center.x + vx * shift;
+      let newCy = center.y + vy * shift;
+
+      const margin = 10;
+      const halfW = btnRect.width/2;
+      const halfH = btnRect.height/2;
+      const minX = parentRect.left + margin + halfW;
+      const maxX = parentRect.right - margin - halfW;
+      const minY = parentRect.top + margin + halfH + 20;
+      const maxY = parentRect.bottom - margin - halfH;
+
+      if(newCx < minX) newCx = minX;
+      if(newCx > maxX) newCx = maxX;
+      if(newCy < minY) newCy = minY;
+      if(newCy > maxY) newCy = maxY;
+
+      const left = newCx - parentRect.left - halfW;
+      const top = newCy - parentRect.top - halfH;
+
+      noBtn.style.position = 'absolute';
+      noBtn.style.left = left + 'px';
+      noBtn.style.top = top + 'px';
+      noBtn.style.transition = 'left .18s cubic-bezier(.2,.9,.2,1), top .18s cubic-bezier(.2,.9,.2,1)';
+    }
+
+    function nudgeNo(){
+      const parentRect = card.getBoundingClientRect();
+      const btnRect = noBtn.getBoundingClientRect();
+      const halfW = btnRect.width/2; const halfH = btnRect.height/2;
+      const margin = 10;
+      const minX = parentRect.left + margin + halfW;
+      const maxX = parentRect.right - margin - halfW;
+      const minY = parentRect.top + margin + halfH + 20;
+      const maxY = parentRect.bottom - margin - halfH;
+      const newCx = Math.random()*(maxX-minX)+minX;
+      const newCy = Math.random()*(maxY-minY)+minY;
+      const left = newCx - parentRect.left - halfW;
+      const top = newCy - parentRect.top - halfH;
+      noBtn.style.left = left + 'px';
+      noBtn.style.top = top + 'px';
+    }
+
+    window.addEventListener('mousemove', (e)=>{
+      const now = Date.now();
+      if(now - lastMove < 40) return;
+      lastMove = now;
+
+      const pt = {x:e.clientX,y:e.clientY};
+      const btnRect = noBtn.getBoundingClientRect();
+      const cx = btnRect.left + btnRect.width/2; const cy = btnRect.top + btnRect.height/2;
+      const dist = Math.hypot(cx-pt.x, cy-pt.y);
+
+      const threshold = Math.max(90, Math.min(220, btnRect.width*4));
+      if(dodgeEnabled && dist < threshold){
+        dodgeFrom(pt);
+        clearTimeout(noBtn._nudge);
+        noBtn._nudge = setTimeout(nudgeNo, 380 + Math.random()*300);
+      }
+    });
+
+    window.addEventListener('touchstart', (e)=>{
+      if(!e.touches||!e.touches.length) return;
+      const t = e.touches[0];
+      const btnRect = noBtn.getBoundingClientRect();
+      const cx = btnRect.left + btnRect.width/2; const cy = btnRect.top + btnRect.height/2;
+      const dist = Math.hypot(cx-t.clientX, cy-t.clientY);
+      if(dist < 120) {
+        dodgeFrom({x:t.clientX,y:t.clientY});
+      }
+    });
+
+    yesBtn.addEventListener('click', ()=>{
+      dodgeEnabled = false;
+      document.getElementById('buttonRow').style.display = 'none';
+      const gif = document.createElement('div');
+      gif.className = 'gif-wrap';
+      gif.innerHTML = `<img src="https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExMmYzdjBlYTJ1MTI0ZmFpdW5oYWgydTNocWk5a3BncXRzdmpnb2VyZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/d37mEpcaGP3pudPoho/giphy.gif" alt="Cute Anime Couple" />`;
+      const txt = document.createElement('div');
+      txt.className = 'result';
+      txt.textContent = 'YEAAAA!! 🎉';
+      resultWrap.appendChild(gif);
+      resultWrap.appendChild(txt);
+      runConfetti();
+    });
+
+    noBtn.addEventListener('click', (e)=>{
+      e.preventDefault();
+      noBtn.animate([{transform:'scale(1)'},{transform:'scale(1.06)'},{transform:'scale(1)'}],{duration:220});
+    });
+
+    function runConfetti(){
+      const canvas = document.getElementById('confettiCanvas');
+      const ctx = canvas.getContext('2d');
+      function resize(){canvas.width = innerWidth; canvas.height = innerHeight}
+      resize(); window.addEventListener('resize', resize);
+
+      const pieces = [];
+      const PI2 = Math.PI*2;
+      const colors = ['#ffd86b','#ff7ab6','#60a5fa','#34d399','#f97316'];
+
+      for(let i=0;i<120;i++){
+        pieces.push({
+          x: Math.random()*canvas.width,
+          y: -Math.random()*canvas.height*0.2,
+          vx: (Math.random()-0.5)*6,
+          vy: Math.random()*3+2,
+          rot: Math.random()*PI2,
+          vr: (Math.random()-0.5)*0.2,
+          w: 6+Math.random()*10,
+          h: 8+Math.random()*12,
+          c: colors[Math.floor(Math.random()*colors.length)],
+        });
+      }
+
+      let frame;
+      function draw(){
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        for(const p of pieces){
+          p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.vy += 0.03;
+          if(p.y > canvas.height + 60){ p.y = -40; p.x = Math.random()*canvas.width; p.vy = Math.random()*3+2 }
+          ctx.save();
+          ctx.translate(p.x,p.y);
+          ctx.rotate(p.rot);
+          ctx.fillStyle = p.c;
+          ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+          ctx.restore();
+        }
+        frame = requestAnimationFrame(draw);
+      }
+      draw();
+      setTimeout(()=>{ cancelAnimationFrame(frame); ctx.clearRect(0,0,canvas.width,canvas.height); }, 6500);
+    }
+
+    yesBtn.setAttribute('tabindex','0'); 
+    noBtn.setAttribute('tabindex','0');
+    yesBtn.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' ') yesBtn.click(); });
+  </script>
+</body>
+</html>
